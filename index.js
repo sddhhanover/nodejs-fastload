@@ -4,6 +4,7 @@ var request = require("request"),
 
 // Prefix of URL
 var pUrl;
+var source;
 
 // use to download file from http / http URL
 var download = function(uri, filename, cb){
@@ -62,6 +63,9 @@ exports.filter = function(req, res, next) {
 		} else {
 			next()
 		}
+		if (source) {
+			imgUrl = source + imgUrl;
+		};
 		var tmpname = (new Date()).getTime()+Math.floor(Math.random()*1000)+'-img';
 		download(imgUrl, '/tmp/'+tmpname, function(err, filename) {
 			if (err) {
@@ -106,8 +110,8 @@ exports.filter = function(req, res, next) {
 	}
 };
 
-exports.loader = function(prefix) {
-	pUrl = prefix || '/l';
-
+exports.loader = function(opts) {
+	pUrl = opts.prefix || '/l';
+	source = opts.source || process.cwd();
 	return exports.filter;
 }
