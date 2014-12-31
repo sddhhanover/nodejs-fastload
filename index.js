@@ -28,8 +28,8 @@ var ruleToObj = function(req) {
 	}
 	var _r = req.split(',');
 	for (var i in _r) {
-		if (/^c\d+x\d+(x[\d-]+x[\d-]+)?$/i.test(_r[i])) {
-			obj.crop = _r[i].replace('X','x').replace(/c/i, '').split('x');
+		if (/^c\d+x\d+(x[\d-]+x[\d-]+|-(\w+))?$/i.test(_r[i])) {
+			obj.crop = _r[i].replace('X','x').replace(/c/i, '').split(/x|-/);
 			if (obj.crop.length == 2) {
 				obj.crop.push.apply(obj.crop, [0,0]);
 			}
@@ -89,23 +89,41 @@ exports.filter = function(req, res, next) {
 						break;
 				}
 			}
-			// do the cropping at last
-			if (rules['crop']) {
-				fgm.crop.apply(fgm, rules['crop']);
+
+			var streamCallback = function() {
+				fgm.stream(function(err, stdout, stderr) {
+					if (err) {
+						res.send("Error to load: "+imgUrl);
+						fs.unlink('/tmp/'+tmpname);
+						return;
+					}
+					stdout.pipe(res);
+					// remove when output to user
+					stdout.on('end', function() {
+						fs.unlink('/tmp/'+tmpname);
+					});
+				});
 			}
 
-			fgm.stream(function(err, stdout, stderr) {
-				if (err) {
-					res.send("Error to load: "+imgUrl);
-					fs.unlink('/tmp/'+tmpname);
-					return;
+			// do the cropping at last
+			if (rules['crop']) {
+				if (rules['crop'][2] == 'center') {
+					fgm.size(function(err, value) {
+						if (!err) {
+							rules['crop'][2] = (value.width - rules['crop'][0])/2;
+							if (rules['crop'].length == 3) { rules['crop'].push(); };
+							rules['crop'][3] = (value.height - rules['crop'][1])/2;
+							fgm.crop.apply(fgm, rules['crop']);
+						};
+						streamCallback();
+					});
 				}
-				stdout.pipe(res);
-				// remove when output to user
-				stdout.on('end', function() {
-					fs.unlink('/tmp/'+tmpname);
-				});
-			});
+				else {
+					fgm.crop.apply(fgm, rules['crop']);
+					streamCallback();
+				}
+			}
+			else streamCallback();
 		});
 	}
 };
